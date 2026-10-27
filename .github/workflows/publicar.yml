@@ -1,0 +1,40 @@
+# Publica el instalador como «Release» cada vez que cambia version.txt o el instalador.
+# El enlace hcsolucionesrd.com/descargar/fixdriver lleva siempre al de la versión más reciente:
+#   https://github.com/henrym521-ship-it/fixdriver-descargas/releases/latest/download/FixDriverPro-Setup.exe
+name: Publicar instalador
+
+on:
+  push:
+    branches: [main]
+    paths: ["version.txt", "instalador/**", "notas/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprobar el instalador (huella SHA-256)
+        run: |
+          cd instalador
+          sha256sum -c FixDriverPro-Setup.exe.sha256
+
+      - name: Crear o actualizar la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(tr -d ' \r\n' < version.txt)"
+          ETIQUETA="v${VERSION}"
+          NOTAS="notas/${VERSION}.md"
+          [ -f "$NOTAS" ] || NOTAS=/dev/null
+          if gh release view "$ETIQUETA" >/dev/null 2>&1; then
+            gh release upload "$ETIQUETA" instalador/FixDriverPro-Setup.exe instalador/FixDriverPro-Setup.exe.sha256 --clobber
+            gh release edit "$ETIQUETA" --notes-file "$NOTAS" --latest
+          else
+            gh release create "$ETIQUETA" instalador/FixDriverPro-Setup.exe instalador/FixDriverPro-Setup.exe.sha256 \
+              --title "FixDriver Pro ${VERSION} (BETA)" --notes-file "$NOTAS" --latest
+          fi
